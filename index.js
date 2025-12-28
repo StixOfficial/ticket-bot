@@ -145,22 +145,50 @@ async function createTicket(i, type, form) {
     ]
   });
 
-  let desc = `Opened by <@${i.user.id}>`;
-  if (form)
+  let desc = `**Opened by:** <@${i.user.id}>`;
+
+  if (form) {
     desc += `\n\n**Script:** ${form.script}\n**Version:** ${form.version}\n**Framework:** ${form.framework}`;
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor("#b7ff00")
+    .setTitle("Resource Update")
+    .setDescription(desc)
+    .addFields(
+      { name: "Resource", value: data.label, inline: true },
+      { name: "Status", value: "Open", inline: true },
+      { name: "Changes", value: "Support request opened" }
+    )
+    .setFooter({ text: "Prism Scripts Support System" });
 
   await channel.send({
-    content: `<@${config.staffRole}> <@${i.user.id}>`,
-    embeds: [new EmbedBuilder().setColor(config.embedColor).setTitle(data.label).setDescription(desc)],
+    content: `<@&${config.staffRole}> <@${i.user.id}>`,
+    allowedMentions: {
+      roles: [config.staffRole],
+      users: [i.user.id]
+    },
+    embeds: [embed],
     components: [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("claim").setLabel("Claim Ticket").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder()
+          .setCustomId("claim")
+          .setLabel("Get Notifications")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId("close")
+          .setLabel("Remove Notifications")
+          .setStyle(ButtonStyle.Danger)
       )
     ]
   });
+
+  await i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+}
+
 
   i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
 }
 
 client.login(process.env.TOKEN);
+
