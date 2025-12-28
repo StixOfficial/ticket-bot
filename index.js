@@ -2,131 +2,116 @@ require("dotenv").config();
 const http = require("http");
 
 const {
-  Client,
-  GatewayIntentBits,
-  ChannelType,
-  EmbedBuilder,
-  ActionRowBuilder,
-  StringSelectMenuBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  PermissionsBitField,
-  SlashCommandBuilder,
-  REST,
-  Routes
+  Client, GatewayIntentBits, ChannelType,
+  EmbedBuilder, ActionRowBuilder,
+  StringSelectMenuBuilder, ButtonBuilder,
+  ButtonStyle, PermissionsBitField,
+  ModalBuilder, TextInputBuilder,
+  TextInputStyle
 } = require("discord.js");
 
 const { createTranscript } = require("discord-html-transcripts");
 const config = require("./config");
 
-/* Keep Railway Alive */
 http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end("Ticket bot running");
+  res.writeHead(200); res.end("online");
 }).listen(process.env.PORT || 3000);
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
-/* Register Slash Command */
-const commands = [
-  new SlashCommandBuilder()
-    .setName("panel")
-    .setDescription("Post the ticket panel")
-].map(c => c.toJSON());
+client.once("ready", () => console.log("Ticket bot ready"));
 
-const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+client.on("interactionCreate", async i => {
 
-(async () => {
-  await rest.put(
-    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-    { body: commands }
-  );
-})();
+  // PANEL
+  if (i.isStringSelectMenu()) {
+    if (i.values[0] === "support") {
+      const modal = new ModalBuilder()
+        .setCustomId("support_form")
+        .setTitle("Script Support");
 
-client.once("ready", () => {
-  console.log("Ticket Bot Online");
-});
-
-client.on("interactionCreate", async (i) => {
-  if (i.isChatInputCommand() && i.commandName === "panel") {
-    if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return i.reply({ content: "No permission.", ephemeral: true });
-
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(config.panel.title)
-      .setDescription(config.panel.description);
-
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId("ticket_select")
-      .setPlaceholder("Select a category...")
-      .addOptions(
-        config.categories.map(c => ({
-          label: c.label,
-          description: c.description,
-          emoji: c.emoji,
-          value: c.value
-        }))
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("script").setLabel("Script Name").setStyle(TextInputStyle.Short).setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("version").setLabel("Version").setStyle(TextInputStyle.Short).setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("framework").setLabel("Framework").setStyle(TextInputStyle.Short).setRequired(true)
+        )
       );
 
-    await i.channel.send({
-      embeds: [embed],
-      components: [new ActionRowBuilder().addComponents(menu)]
-    });
+      return i.showModal(modal);
+    }
 
-    await i.reply({ content: "Panel posted.", ephemeral: true });
+    createTicket(i, i.values[0], null);
   }
 
-  if (i.isStringSelectMenu()) {
-    const choice = config.categories.find(c => c.value === i.values[0]);
+  // FORM SUBMIT
+  if (i.isModalSubmit()) {
+    const data = {
+      script: i.fields.getTextInputValue("script"),
+      version: i.fields.getTextInputValue("version"),
+      framework: i.fields.getTextInputValue("framework")
+    };
 
-    const channel = await i.guild.channels.create({
-      name: `ticket-${i.user.username}`,
-      type: ChannelType.GuildText,
-      parent: choice.categoryId,
-      permissionOverwrites: [
-        { id: i.guild.id, deny: ["ViewChannel"] },
-        { id: i.user.id, allow: ["ViewChannel", "SendMessages"] }
-      ]
-    });
-
-    await channel.send({
-      content: `<@${i.user.id}>`,
-      embeds: [
-        new EmbedBuilder()
-          .setColor(config.embedColor)
-          .setTitle(choice.label)
-          .setDescription("A staff member will assist you shortly.")
-      ],
-      components: [
-        new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId("close_ticket")
-            .setLabel("Close Ticket")
-            .setStyle(ButtonStyle.Danger)
-        )
-      ]
-    });
-
-    await i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+    createTicket(i, "support", data);
   }
 
-  if (i.isButton() && i.customId === "close_ticket") {
+  // CLAIM
+  if (i.isButton() && i.customId === "claim") {
+    if (!i.member.roles.cache.has(config.staffRole))
+      return i.reply({ content: "No permission.", ephemeral: true });
+
+    await i.update({
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setLabel(`Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true)
+      )]
+    });
+  }
+
+  // CLOSE
+  if (i.isButton() && i.customId === "close") {
     const transcript = await createTranscript(i.channel);
-
     try { await i.user.send({ files: [transcript] }); } catch {}
-
     const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
-    log.send({ files: [transcript] });
-
+    await log.send({ files: [transcript] });
     await i.channel.delete();
   }
 });
+
+async function createTicket(i, type, form) {
+  const data = config.categories.find(c => c.value === type);
+
+  const channel = await i.guild.channels.create({
+    name: `ticket-${i.user.username}`,
+    parent: data.categoryId,
+    type: ChannelType.GuildText,
+    permissionOverwrites: [
+      { id: i.guild.id, deny: ["ViewChannel"] },
+      { id: i.user.id, allow: ["ViewChannel", "SendMessages"] },
+      { id: config.staffRole, allow: ["ViewChannel", "SendMessages"] }
+    ]
+  });
+
+  let desc = `Opened by <@${i.user.id}>`;
+  if (form) desc += `\n\n**Script:** ${form.script}\n**Version:** ${form.version}\n**Framework:** ${form.framework}`;
+
+  await channel.send({
+    content: `<@${config.staffRole}> <@${i.user.id}>`,
+    embeds: [new EmbedBuilder().setColor(config.embedColor).setTitle(data.label).setDescription(desc)],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("claim").setLabel("Claim Ticket").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
+      )
+    ]
+  });
+
+  i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+}
 
 client.login(process.env.TOKEN);
