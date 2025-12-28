@@ -10,6 +10,10 @@ const {
   StringSelectMenuBuilder,
   ButtonBuilder,
   ButtonStyle,
+  PermissionsBitField,
+  SlashCommandBuilder,
+  REST,
+  Routes
 } = require("discord.js");
 
 const { createTranscript } = require("discord-html-transcripts");
@@ -25,41 +29,60 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.MessageContent
   ],
 });
 
-client.once("ready", async () => {
+/* Register Slash Command */
+const commands = [
+  new SlashCommandBuilder()
+    .setName("panel")
+    .setDescription("Post the ticket panel")
+].map(c => c.toJSON());
+
+const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+
+(async () => {
+  await rest.put(
+    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+    { body: commands }
+  );
+})();
+
+client.once("ready", () => {
   console.log("Ticket Bot Online");
-
-  const guild = await client.guilds.fetch(process.env.GUILD_ID);
-  const channel = guild.channels.cache.find(c => c.name === "ticket-panel");
-
-  if (!channel) return console.log("Create a channel named ticket-panel");
-
-  const embed = new EmbedBuilder()
-    .setColor(config.embedColor)
-    .setTitle(config.panel.title)
-    .setDescription(config.panel.description);
-
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId("ticket_select")
-    .setPlaceholder("Select a category...")
-    .addOptions(
-      config.categories.map(c => ({
-        label: c.label,
-        description: c.description,
-        emoji: c.emoji,
-        value: c.value,
-      }))
-    );
-
-  const row = new ActionRowBuilder().addComponents(menu);
-
-  channel.send({ embeds: [embed], components: [row] });
 });
 
 client.on("interactionCreate", async (i) => {
+  if (i.isChatInputCommand() && i.commandName === "panel") {
+    if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return i.reply({ content: "No permission.", ephemeral: true });
+
+    const embed = new EmbedBuilder()
+      .setColor(config.embedColor)
+      .setTitle(config.panel.title)
+      .setDescription(config.panel.description);
+
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId("ticket_select")
+      .setPlaceholder("Select a category...")
+      .addOptions(
+        config.categories.map(c => ({
+          label: c.label,
+          description: c.description,
+          emoji: c.emoji,
+          value: c.value
+        }))
+      );
+
+    await i.channel.send({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(menu)]
+    });
+
+    await i.reply({ content: "Panel posted.", ephemeral: true });
+  }
+
   if (i.isStringSelectMenu()) {
     const choice = config.categories.find(c => c.value === i.values[0]);
 
@@ -69,8 +92,8 @@ client.on("interactionCreate", async (i) => {
       parent: choice.categoryId,
       permissionOverwrites: [
         { id: i.guild.id, deny: ["ViewChannel"] },
-        { id: i.user.id, allow: ["ViewChannel", "SendMessages"] },
-      ],
+        { id: i.user.id, allow: ["ViewChannel", "SendMessages"] }
+      ]
     });
 
     await channel.send({
@@ -79,7 +102,7 @@ client.on("interactionCreate", async (i) => {
         new EmbedBuilder()
           .setColor(config.embedColor)
           .setTitle(choice.label)
-          .setDescription("A staff member will assist you shortly."),
+          .setDescription("A staff member will assist you shortly.")
       ],
       components: [
         new ActionRowBuilder().addComponents(
@@ -87,8 +110,8 @@ client.on("interactionCreate", async (i) => {
             .setCustomId("close_ticket")
             .setLabel("Close Ticket")
             .setStyle(ButtonStyle.Danger)
-        ),
-      ],
+        )
+      ]
     });
 
     await i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
@@ -97,9 +120,7 @@ client.on("interactionCreate", async (i) => {
   if (i.isButton() && i.customId === "close_ticket") {
     const transcript = await createTranscript(i.channel);
 
-    try {
-      await i.user.send({ files: [transcript] });
-    } catch {}
+    try { await i.user.send({ files: [transcript] }); } catch {}
 
     const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
     log.send({ files: [transcript] });
