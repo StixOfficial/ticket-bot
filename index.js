@@ -26,18 +26,21 @@ const client = new Client({
 
 /* Register slash command */
 const commands = [
-  new SlashCommandBuilder()
-    .setName("panel")
-    .setDescription("Post the support panel")
+  new SlashCommandBuilder().setName("panel").setDescription("Post the support panel")
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
 (async () => {
-  await rest.put(
-    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-    { body: commands }
-  );
+  try {
+    await rest.put(
+      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+      { body: commands }
+    );
+    console.log("Slash command registered");
+  } catch (e) {
+    console.error("Command register error", e);
+  }
 })();
 
 client.once("ready", () => {
@@ -46,7 +49,7 @@ client.once("ready", () => {
 
 client.on("interactionCreate", async i => {
 
-  /* /panel */
+  // /panel
   if (i.isChatInputCommand() && i.commandName === "panel") {
     if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return i.reply({ content: "No permission.", ephemeral: true });
@@ -73,7 +76,7 @@ client.on("interactionCreate", async i => {
     return i.reply({ content: "Panel posted.", ephemeral: true });
   }
 
-  /* Dropdown */
+  // Dropdown
   if (i.isStringSelectMenu()) {
     if (i.values[0] === "support") {
       const modal = new ModalBuilder()
@@ -98,7 +101,7 @@ client.on("interactionCreate", async i => {
     createTicket(i, i.values[0], null);
   }
 
-  /* Modal */
+  // Modal submit
   if (i.isModalSubmit()) {
     const data = {
       script: i.fields.getTextInputValue("script"),
@@ -109,7 +112,7 @@ client.on("interactionCreate", async i => {
     createTicket(i, "support", data);
   }
 
-  /* Claim */
+  // Claim
   if (i.isButton() && i.customId === "claim") {
     if (!i.member.roles.cache.has(config.staffRole))
       return i.reply({ content: "No permission.", ephemeral: true });
@@ -121,12 +124,12 @@ client.on("interactionCreate", async i => {
     });
   }
 
-  /* Close */
+  // Close
   if (i.isButton() && i.customId === "close") {
     const transcript = await createTranscript(i.channel);
     try { await i.user.send({ files: [transcript] }); } catch {}
     const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
-    log.send({ files: [transcript] });
+    await log.send({ files: [transcript] });
     await i.channel.delete();
   }
 });
@@ -145,50 +148,23 @@ async function createTicket(i, type, form) {
     ]
   });
 
-  let desc = `**Opened by:** <@${i.user.id}>`;
-
-  if (form) {
+  let desc = `Opened by <@${i.user.id}>`;
+  if (form)
     desc += `\n\n**Script:** ${form.script}\n**Version:** ${form.version}\n**Framework:** ${form.framework}`;
-  }
-
-  const embed = new EmbedBuilder()
-    .setColor("#b7ff00")
-    .setTitle("Resource Update")
-    .setDescription(desc)
-    .addFields(
-      { name: "Resource", value: data.label, inline: true },
-      { name: "Status", value: "Open", inline: true },
-      { name: "Changes", value: "Support request opened" }
-    )
-    .setFooter({ text: "Prism Scripts Support System" });
 
   await channel.send({
     content: `<@&${config.staffRole}> <@${i.user.id}>`,
-    allowedMentions: {
-      roles: [config.staffRole],
-      users: [i.user.id]
-    },
-    embeds: [embed],
+    allowedMentions: { roles: [config.staffRole], users: [i.user.id] },
+    embeds: [new EmbedBuilder().setColor(config.embedColor).setTitle(data.label).setDescription(desc)],
     components: [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("claim")
-          .setLabel("Get Notifications")
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId("close")
-          .setLabel("Remove Notifications")
-          .setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId("claim").setLabel("Get Notifications").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("close").setLabel("Remove Notifications").setStyle(ButtonStyle.Danger)
       )
     ]
   });
-
-  await i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
-}
-
 
   i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
 }
 
 client.login(process.env.TOKEN);
-
