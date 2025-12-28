@@ -7,25 +7,73 @@ const {
   StringSelectMenuBuilder, ButtonBuilder,
   ButtonStyle, PermissionsBitField,
   ModalBuilder, TextInputBuilder,
-  TextInputStyle
+  TextInputStyle, SlashCommandBuilder,
+  REST, Routes
 } = require("discord.js");
 
 const { createTranscript } = require("discord-html-transcripts");
 const config = require("./config");
 
+/* Keep Railway alive */
 http.createServer((req, res) => {
-  res.writeHead(200); res.end("online");
+  res.writeHead(200);
+  res.end("ok");
 }).listen(process.env.PORT || 3000);
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
-client.once("ready", () => console.log("Ticket bot ready"));
+/* Register slash command */
+const commands = [
+  new SlashCommandBuilder()
+    .setName("panel")
+    .setDescription("Post the support panel")
+].map(c => c.toJSON());
+
+const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+
+(async () => {
+  await rest.put(
+    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+    { body: commands }
+  );
+})();
+
+client.once("ready", () => {
+  console.log("Ticket bot online");
+});
 
 client.on("interactionCreate", async i => {
 
-  // PANEL
+  /* /panel */
+  if (i.isChatInputCommand() && i.commandName === "panel") {
+    if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return i.reply({ content: "No permission.", ephemeral: true });
+
+    const embed = new EmbedBuilder()
+      .setColor(config.embedColor)
+      .setTitle(config.panel.title)
+      .setDescription(config.panel.description);
+
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId("ticket_select")
+      .setPlaceholder("Select a category...")
+      .addOptions(config.categories.map(c => ({
+        label: c.label,
+        emoji: c.emoji,
+        value: c.value
+      })));
+
+    await i.channel.send({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(menu)]
+    });
+
+    return i.reply({ content: "Panel posted.", ephemeral: true });
+  }
+
+  /* Dropdown */
   if (i.isStringSelectMenu()) {
     if (i.values[0] === "support") {
       const modal = new ModalBuilder()
@@ -50,7 +98,7 @@ client.on("interactionCreate", async i => {
     createTicket(i, i.values[0], null);
   }
 
-  // FORM SUBMIT
+  /* Modal */
   if (i.isModalSubmit()) {
     const data = {
       script: i.fields.getTextInputValue("script"),
@@ -61,7 +109,7 @@ client.on("interactionCreate", async i => {
     createTicket(i, "support", data);
   }
 
-  // CLAIM
+  /* Claim */
   if (i.isButton() && i.customId === "claim") {
     if (!i.member.roles.cache.has(config.staffRole))
       return i.reply({ content: "No permission.", ephemeral: true });
@@ -73,12 +121,12 @@ client.on("interactionCreate", async i => {
     });
   }
 
-  // CLOSE
+  /* Close */
   if (i.isButton() && i.customId === "close") {
     const transcript = await createTranscript(i.channel);
     try { await i.user.send({ files: [transcript] }); } catch {}
     const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
-    await log.send({ files: [transcript] });
+    log.send({ files: [transcript] });
     await i.channel.delete();
   }
 });
@@ -98,7 +146,8 @@ async function createTicket(i, type, form) {
   });
 
   let desc = `Opened by <@${i.user.id}>`;
-  if (form) desc += `\n\n**Script:** ${form.script}\n**Version:** ${form.version}\n**Framework:** ${form.framework}`;
+  if (form)
+    desc += `\n\n**Script:** ${form.script}\n**Version:** ${form.version}\n**Framework:** ${form.framework}`;
 
   await channel.send({
     content: `<@${config.staffRole}> <@${i.user.id}>`,
