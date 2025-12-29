@@ -87,6 +87,12 @@ function panelMenu() {
     })));
 }
 
+/* Reliable role checker */
+async function memberHasRole(i, roleId) {
+  const member = await i.guild.members.fetch(i.user.id);
+  return member.roles.cache.has(roleId);
+}
+
 client.on("interactionCreate", async i => {
   try {
 
@@ -110,7 +116,7 @@ client.on("interactionCreate", async i => {
       });
 
       if (type === "support") {
-        if (!i.member.roles.cache.has(CUSTOMER_ROLE))
+        if (!(await memberHasRole(i, CUSTOMER_ROLE)))
           return i.reply({ content: "❌ Customer role required.", ephemeral: true });
 
         if (await hasOpenTicket(i.guild, i.user.id, "support"))
@@ -145,6 +151,7 @@ client.on("interactionCreate", async i => {
     if (i.isModalSubmit() && i.customId === "support_form") {
       await i.reply({ content: "Creating your ticket...", ephemeral: true });
       autoClear(i);
+
       return createTicket(i, "support", {
         script: i.fields.getTextInputValue("script"),
         version: i.fields.getTextInputValue("version"),
@@ -154,7 +161,7 @@ client.on("interactionCreate", async i => {
 
     /* Claim (staff only) */
     if (i.isButton() && i.customId === "claim") {
-      if (!i.member.roles.cache.has(SUPPORT_ROLE))
+      if (!(await memberHasRole(i, SUPPORT_ROLE)))
         return i.reply({ content: "❌ Staff only.", ephemeral: true });
 
       await i.deferUpdate();
