@@ -61,10 +61,11 @@ client.on("interactionCreate", async (i) => {
     return i.reply({ content: "Panel posted.", ephemeral: true });
   }
 
-  /* Dropdown (always resets) */
+  /* Dropdown */
   if (i.isStringSelectMenu()) {
     const choice = i.values[0];
 
+    // Reset menu without consuming interaction
     const freshMenu = new StringSelectMenuBuilder()
       .setCustomId("ticket_select")
       .setPlaceholder("Select a category...")
@@ -79,17 +80,16 @@ client.on("interactionCreate", async (i) => {
       .setTitle(config.panel.title)
       .setDescription(config.panel.description);
 
-    await i.update({ embeds: [freshEmbed], components: [new ActionRowBuilder().addComponents(freshMenu)] });
+    await i.message.edit({
+      embeds: [freshEmbed],
+      components: [new ActionRowBuilder().addComponents(freshMenu)]
+    });
 
-    /* Script Support role check */
+    // Script Support → role check
     if (choice === "support") {
       const requiredRole = "1447572198494703666";
-
       if (!i.member.roles.cache.has(requiredRole)) {
-        return i.followUp({
-          content: "❌ You must have the Customer role to open a Script Support ticket.",
-          ephemeral: true
-        });
+        return i.reply({ content: "❌ You must have the Customer role to open a Script Support ticket.", ephemeral: true });
       }
 
       const modal = new ModalBuilder()
@@ -190,7 +190,7 @@ async function createTicket(i, type, form) {
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
-    .setTitle("✅ Script Support")
+    .setTitle("✅ Resource Update")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .addFields(
       { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\n\n\`\`\`` },
