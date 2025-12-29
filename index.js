@@ -153,18 +153,49 @@ async function createTicket(i, type, form) {
     desc += `\n\n**Script:** ${form.script}\n**Version:** ${form.version}\n**Framework:** ${form.framework}`;
 
   await channel.send({
-    content: `<@&${config.staffRole}> <@${i.user.id}>`,
-    allowedMentions: { roles: [config.staffRole], users: [i.user.id] },
-    embeds: [new EmbedBuilder().setColor(config.embedColor).setTitle(data.label).setDescription(desc)],
-    components: [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("claim").setLabel("Get Notifications").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("close").setLabel("Remove Notifications").setStyle(ButtonStyle.Danger)
-      )
-    ]
-  });
+    const embed = new EmbedBuilder()
+  .setColor("#b7ff00")
+  .setTitle("✅ Resource Update")
+  .setDescription(
+    `**Resource:** ${data.label}\n` +
+    `**Opened By:** <@${i.user.id}>\n\n` +
+    `**Changes**\n` +
+    `**Added:**\n` +
+    "```diff\n+ Support request opened\n```\n" +
+    `**Changed File(s):**\n` +
+    "```" +
+    (form
+      ? `Script: ${form.script}\nVersion: ${form.version}\nFramework: ${form.framework}`
+      : "General ticket"
+    ) +
+    "```"
+  )
+  .setFooter({ text: "Prism Scripts Support System" });
+
+await channel.send({
+  content: `<@&${config.staffRole}> <@${i.user.id}>`,
+  allowedMentions: {
+    roles: [config.staffRole],
+    users: [i.user.id]
+  },
+  embeds: [embed],
+  components: [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("claim")
+        .setLabel("Get Notifications")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("close")
+        .setLabel("Remove Notifications")
+        .setStyle(ButtonStyle.Danger)
+    )
+  ]
+});
+
 
   i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
 }
 
 client.login(process.env.TOKEN);
+
