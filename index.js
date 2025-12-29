@@ -8,7 +8,7 @@ const {
   ButtonStyle, ModalBuilder,
   TextInputBuilder, TextInputStyle,
   SlashCommandBuilder, REST, Routes,
-  ActivityType
+  ActivityType, PermissionsBitField
 } = require("discord.js");
 
 const { createTranscript } = require("discord-html-transcripts");
@@ -145,7 +145,6 @@ client.on("interactionCreate", async i => {
     if (i.isModalSubmit() && i.customId === "support_form") {
       await i.reply({ content: "Creating your ticket...", ephemeral: true });
       autoClear(i);
-
       return createTicket(i, "support", {
         script: i.fields.getTextInputValue("script"),
         version: i.fields.getTextInputValue("version"),
@@ -219,7 +218,12 @@ async function createTicket(i, type, form) {
     name: `ticket-${i.user.username}`,
     topic: `OPENER:${i.user.id}|TYPE:${type}`,
     parent: data.categoryId,
-    type: ChannelType.GuildText
+    type: ChannelType.GuildText,
+    permissionOverwrites: [
+      { id: i.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+      { id: i.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
+      { id: SUPPORT_ROLE, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }
+    ]
   });
 
   const embed = new EmbedBuilder()
