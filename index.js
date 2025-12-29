@@ -14,6 +14,9 @@ const {
 const { createTranscript } = require("discord-html-transcripts");
 const config = require("./config");
 
+const SUPPORT_ROLE = "1447572189451653120";
+const CUSTOMER_ROLE = "1447572198494703666";
+
 /* Keep Railway alive */
 http.createServer((req, res) => {
   res.writeHead(200);
@@ -107,7 +110,7 @@ client.on("interactionCreate", async i => {
       });
 
       if (type === "support") {
-        if (!i.member.roles.cache.has("1447572198494703666"))
+        if (!i.member.roles.cache.has(CUSTOMER_ROLE))
           return i.reply({ content: "❌ Customer role required.", ephemeral: true });
 
         if (await hasOpenTicket(i.guild, i.user.id, "support"))
@@ -142,6 +145,7 @@ client.on("interactionCreate", async i => {
     if (i.isModalSubmit() && i.customId === "support_form") {
       await i.reply({ content: "Creating your ticket...", ephemeral: true });
       autoClear(i);
+
       return createTicket(i, "support", {
         script: i.fields.getTextInputValue("script"),
         version: i.fields.getTextInputValue("version"),
@@ -151,7 +155,7 @@ client.on("interactionCreate", async i => {
 
     /* Claim (staff only) */
     if (i.isButton() && i.customId === "claim") {
-      if (!i.member.roles.cache.has("1447572189451653120"))
+      if (!i.member.roles.cache.has(SUPPORT_ROLE))
         return i.reply({ content: "❌ Staff only.", ephemeral: true });
 
       await i.deferUpdate();
@@ -161,14 +165,14 @@ client.on("interactionCreate", async i => {
       await i.message.edit({
         components: [
           new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setLabel(`Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
-            new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
+            new ButtonBuilder().setLabel(`✔️ Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
+            new ButtonBuilder().setCustomId("close").setLabel("❌ Close Ticket").setStyle(ButtonStyle.Danger)
           )
         ]
       });
     }
 
-    /* Close (ANYONE) */
+    /* Close */
     if (i.isButton() && i.customId === "close") {
       return i.reply({
         ephemeral: true,
@@ -236,12 +240,13 @@ async function createTicket(i, type, form) {
   }
 
   await ch.send({
-    content: `<@${i.user.id}>`,
+    content: `<@&${SUPPORT_ROLE}> <@${i.user.id}>`,
+    allowedMentions: { roles: [SUPPORT_ROLE], users: [i.user.id] },
     embeds: [embed],
     components: [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId("claim").setLabel("✔️ Claim").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("close").setLabel("❌ Close Ticket").setStyle(ButtonStyle.Danger)
       )
     ]
   });
@@ -251,4 +256,3 @@ async function createTicket(i, type, form) {
 }
 
 client.login(process.env.TOKEN);
-
