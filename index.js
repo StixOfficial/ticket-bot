@@ -169,7 +169,7 @@ async function createTicket(i, type, form) {
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
-    .setTitle("✅ Resource Update")
+    .setTitle("✅Script Support")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .addFields(
       { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\n\n\n\`\`\``, inline: false },
@@ -194,3 +194,4 @@ async function createTicket(i, type, form) {
 }
 
 client.login(process.env.TOKEN);
+
