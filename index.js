@@ -79,12 +79,19 @@ client.on("interactionCreate", async (i) => {
       .setTitle(config.panel.title)
       .setDescription(config.panel.description);
 
-    await i.update({
-      embeds: [freshEmbed],
-      components: [new ActionRowBuilder().addComponents(freshMenu)]
-    });
+    await i.update({ embeds: [freshEmbed], components: [new ActionRowBuilder().addComponents(freshMenu)] });
 
+    /* Script Support role check */
     if (choice === "support") {
+      const requiredRole = "1447572198494703666";
+
+      if (!i.member.roles.cache.has(requiredRole)) {
+        return i.followUp({
+          content: "❌ You must have the Customer role to open a Script Support ticket.",
+          ephemeral: true
+        });
+      }
+
       const modal = new ModalBuilder()
         .setCustomId("support_form")
         .setTitle("Script Support");
@@ -107,7 +114,7 @@ client.on("interactionCreate", async (i) => {
     createTicket(i, choice, null);
   }
 
-  /* Modal Submit */
+  /* Modal submit */
   if (i.isModalSubmit()) {
     const data = {
       script: i.fields.getTextInputValue("script"),
@@ -124,10 +131,8 @@ client.on("interactionCreate", async (i) => {
       return i.reply({ content: "You are not support staff.", ephemeral: true });
 
     await i.deferUpdate();
-
     const id = Math.floor(Math.random() * 9000) + 1000;
     await i.channel.setName(`${i.user.username}-${id}`);
-
     await i.channel.send(`**${i.user.username}** has claimed this ticket.`);
 
     await i.message.edit({
@@ -185,7 +190,7 @@ async function createTicket(i, type, form) {
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
-    .setTitle("✅ Resource Update")
+    .setTitle("✅ Script Support")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .addFields(
       { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\n\n\`\`\`` },
