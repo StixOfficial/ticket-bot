@@ -8,7 +8,8 @@ const {
   ButtonStyle, PermissionsBitField,
   ModalBuilder, TextInputBuilder,
   TextInputStyle, SlashCommandBuilder,
-  REST, Routes
+  REST, Routes,
+  ActivityType
 } = require("discord.js");
 
 const { createTranscript } = require("discord-html-transcripts");
@@ -33,13 +34,20 @@ function autoClear(interaction, seconds = 20) {
   setTimeout(() => {
     try {
       if (interaction.editReply) {
-        interaction.editReply({
-          content: "\u200B",
-          components: []
-        }).catch(() => {});
+        interaction.editReply({ content: "\u200B", components: [] }).catch(() => {});
       }
     } catch {}
   }, seconds * 1000);
+}
+
+/* One-ticket-per-category check */
+async function hasOpenTicket(guild, userId, type) {
+  const channels = await guild.channels.fetch();
+  return channels.find(c =>
+    c.topic &&
+    c.topic.includes(`OPENER:${userId}`) &&
+    c.topic.includes(`TYPE:${type}`)
+  );
 }
 
 /* Slash command */
@@ -51,6 +59,12 @@ const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
 client.once("ready", async () => {
   console.log("Fuze Studios Ticket Bot Online");
+
+  client.user.setPresence({
+    activities: [{ name: "Fuze Studios Tickets", type: ActivityType.Watching }],
+    status: "online"
+  });
+
   await rest.put(
     Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
     { body: commands }
@@ -107,37 +121,39 @@ client.on("interactionCreate", async (i) => {
         components: [new ActionRowBuilder().addComponents(panelMenu())]
       });
 
+      // Script Support
       if (choice === "support") {
-        const requiredRole = "1447572198494703666";
-        if (!i.member.roles.cache.has(requiredRole)) {
-          await i.reply({
-            content: "❌ You must have the Customer role to open a Script Support ticket.",
-            ephemeral: true
-          });
+        const existing = await hasOpenTicket(i.guild, i.user.id, "support");
+        if (existing) {
+          await i.reply({ content: `❌ You already have an open **Script Support** ticket: ${existing}`, ephemeral: true });
           autoClear(i);
           return;
         }
 
-        const modal = new ModalBuilder()
-          .setCustomId("support_form")
-          .setTitle("Script Support");
+        const requiredRole = "1447572198494703666";
+        if (!i.member.roles.cache.has(requiredRole)) {
+          await i.reply({ content: "❌ You must have the Customer role to open a Script Support ticket.", ephemeral: true });
+          autoClear(i);
+          return;
+        }
 
+        const modal = new ModalBuilder().setCustomId("support_form").setTitle("Script Support");
         modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("script").setLabel("Script Name").setStyle(TextInputStyle.Short).setRequired(true)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("version").setLabel("Version").setStyle(TextInputStyle.Short).setRequired(true)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("framework").setLabel("Framework").setStyle(TextInputStyle.Short).setRequired(true)
-          )
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("script").setLabel("Script Name").setStyle(TextInputStyle.Short).setRequired(true)),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("version").setLabel("Version").setStyle(TextInputStyle.Short).setRequired(true)),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("framework").setLabel("Framework").setStyle(TextInputStyle.Short).setRequired(true))
         );
-
         return i.showModal(modal);
       }
 
-      // Other ticket types
+      // Claim Role / Other
+      const existing = await hasOpenTicket(i.guild, i.user.id, choice);
+      if (existing) {
+        await i.reply({ content: `❌ You already have an open **${choice}** ticket: ${existing}`, ephemeral: true });
+        autoClear(i);
+        return;
+      }
+
       await i.reply({ content: "Creating your ticket...", ephemeral: true });
       autoClear(i);
       return createTicket(i, choice, null);
@@ -145,6 +161,13 @@ client.on("interactionCreate", async (i) => {
 
     /* Modal submit */
     if (i.isModalSubmit() && i.customId === "support_form") {
+      const existing = await hasOpenTicket(i.guild, i.user.id, "support");
+      if (existing) {
+        await i.reply({ content: `❌ You already have an open **Script Support** ticket: ${existing}`, ephemeral: true });
+        autoClear(i);
+        return;
+      }
+
       await i.reply({ content: "Creating your ticket...", ephemeral: true });
       autoClear(i);
 
@@ -202,8 +225,8 @@ client.on("interactionCreate", async (i) => {
       await i.update({ content: "Closing ticket...", components: [] });
 
       const transcript = await createTranscript(i.channel);
+      const openerId = (i.channel.topic || "").split("|")[0].replace("OPENER:", "");
 
-      const openerId = (i.channel.topic || "").replace("OPENER:", "");
       if (openerId) {
         try {
           const opener = await client.users.fetch(openerId);
@@ -213,9 +236,7 @@ client.on("interactionCreate", async (i) => {
 
       const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
       await log.send({ files: [transcript] });
-
       await i.channel.delete();
-      return;
     }
 
   } catch (err) {
@@ -228,7 +249,7 @@ async function createTicket(i, type, form) {
 
   const channel = await i.guild.channels.create({
     name: `ticket-${i.user.username}`,
-    topic: `OPENER:${i.user.id}`,
+    topic: `OPENER:${i.user.id} | TYPE:${type}`,
     parent: data.categoryId,
     type: ChannelType.GuildText,
     permissionOverwrites: [
