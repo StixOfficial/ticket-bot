@@ -250,7 +250,7 @@ async function createTicket(i, type, form) {
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
-    .setTitle("Fuze Tickets")
+    .setTitle("<:fuze:1455337674369138761> Fuze Tickets")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .setFooter({
       text: "Fuze Studios Support System",
@@ -282,3 +282,4 @@ async function createTicket(i, type, form) {
 }
 
 client.login(process.env.TOKEN);
+
