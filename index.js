@@ -70,12 +70,14 @@ function panelMenu() {
 client.on("interactionCreate", async i => {
   try {
 
+    /* /panel */
     if (i.isChatInputCommand() && i.commandName === "panel") {
       await i.channel.send({ embeds:[panelEmbed()], components:[new ActionRowBuilder().addComponents(panelMenu())] });
       await i.reply({ content:"Panel posted.", ephemeral:true });
       autoClear(i);
     }
 
+    /* Dropdown */
     if (i.isStringSelectMenu() && i.customId === "ticket_select") {
       const choice = i.values[0];
       await i.message.edit({ embeds:[panelEmbed()], components:[new ActionRowBuilder().addComponents(panelMenu())] });
@@ -104,6 +106,7 @@ client.on("interactionCreate", async i => {
       return createTicket(i, choice, null);
     }
 
+    /* Modal submit */
     if (i.isModalSubmit()) {
       await i.reply({ content:"Creating your ticket...", ephemeral:true });
       autoClear(i);
@@ -114,15 +117,35 @@ client.on("interactionCreate", async i => {
       });
     }
 
+    /* Close confirm */
     if (i.isButton() && i.customId === "confirm_close") {
+      await i.update({ content:"Closing ticket...", components:[] });
+
       const transcript = await createTranscript(i.channel);
-      await (await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL)).send({ files:[transcript] });
+
+      // DM opener
+      const openerId = i.channel.topic?.split("|")[0].replace("OPENER:", "");
+      if (openerId) {
+        try {
+          const user = await client.users.fetch(openerId);
+          await user.send({
+            content: "📄 Here is your **Fuze Studios** support ticket transcript:",
+            files: [transcript]
+          });
+        } catch {}
+      }
+
+      // Send to staff log
+      const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
+      await log.send({ files:[transcript] });
+
       await i.channel.delete();
     }
 
   } catch(e){ console.error(e); }
 });
 
+/* Ticket creator */
 async function createTicket(i, type, form) {
   const data = config.categories.find(c=>c.value===type);
   const ch = await i.guild.channels.create({
