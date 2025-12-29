@@ -40,7 +40,7 @@ function autoClear(interaction, seconds = 20) {
   }, seconds * 1000);
 }
 
-/* One-ticket-per-category check */
+/* One-ticket-per-category */
 async function hasOpenTicket(guild, userId, type) {
   const channels = await guild.channels.fetch();
   return channels.find(c =>
@@ -71,7 +71,7 @@ client.once("ready", async () => {
   );
 });
 
-/* Helpers */
+/* Panel helpers */
 function panelEmbed() {
   return new EmbedBuilder()
     .setColor(config.embedColor)
@@ -115,7 +115,7 @@ client.on("interactionCreate", async (i) => {
     if (i.isStringSelectMenu() && i.customId === "ticket_select") {
       const choice = i.values[0];
 
-      // Reset menu
+      // Reset menu visually
       await i.message.edit({
         embeds: [panelEmbed()],
         components: [new ActionRowBuilder().addComponents(panelMenu())]
@@ -125,14 +125,13 @@ client.on("interactionCreate", async (i) => {
       if (choice === "support") {
         const existing = await hasOpenTicket(i.guild, i.user.id, "support");
         if (existing) {
-          await i.reply({ content: `❌ You already have an open **Script Support** ticket: ${existing}`, ephemeral: true });
+          await i.reply({ content: `❌ You already have a Script Support ticket: ${existing}`, ephemeral: true });
           autoClear(i);
           return;
         }
 
-        const requiredRole = "1447572198494703666";
-        if (!i.member.roles.cache.has(requiredRole)) {
-          await i.reply({ content: "❌ You must have the Customer role to open a Script Support ticket.", ephemeral: true });
+        if (!i.member.roles.cache.has("1447572198494703666")) {
+          await i.reply({ content: "❌ You must have the Customer role to open Script Support.", ephemeral: true });
           autoClear(i);
           return;
         }
@@ -143,13 +142,13 @@ client.on("interactionCreate", async (i) => {
           new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("version").setLabel("Version").setStyle(TextInputStyle.Short).setRequired(true)),
           new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("framework").setLabel("Framework").setStyle(TextInputStyle.Short).setRequired(true))
         );
+
         return i.showModal(modal);
       }
 
-      // Claim Role / Other
       const existing = await hasOpenTicket(i.guild, i.user.id, choice);
       if (existing) {
-        await i.reply({ content: `❌ You already have an open **${choice}** ticket: ${existing}`, ephemeral: true });
+        await i.reply({ content: `❌ You already have a ${choice} ticket: ${existing}`, ephemeral: true });
         autoClear(i);
         return;
       }
@@ -161,32 +160,19 @@ client.on("interactionCreate", async (i) => {
 
     /* Modal submit */
     if (i.isModalSubmit() && i.customId === "support_form") {
-      const existing = await hasOpenTicket(i.guild, i.user.id, "support");
-      if (existing) {
-        await i.reply({ content: `❌ You already have an open **Script Support** ticket: ${existing}`, ephemeral: true });
-        autoClear(i);
-        return;
-      }
-
       await i.reply({ content: "Creating your ticket...", ephemeral: true });
       autoClear(i);
 
-      const data = {
+      return createTicket(i, "support", {
         script: i.fields.getTextInputValue("script"),
         version: i.fields.getTextInputValue("version"),
         framework: i.fields.getTextInputValue("framework")
-      };
-
-      return createTicket(i, "support", data);
+      });
     }
 
     /* Claim */
     if (i.isButton() && i.customId === "claim") {
-      if (!i.member.roles.cache.has(config.staffRole)) {
-        await i.reply({ content: "You are not support staff.", ephemeral: true });
-        autoClear(i);
-        return;
-      }
+      if (!i.member.roles.cache.has(config.staffRole)) return;
 
       await i.deferUpdate();
       const id = Math.floor(Math.random() * 9000) + 1000;
@@ -194,53 +180,26 @@ client.on("interactionCreate", async (i) => {
       await i.channel.send(`**${i.user.username}** has claimed this ticket.`);
 
       await i.message.edit({
-        components: [
-          new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setLabel(`Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
-            new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
-          )
-        ]
+        components: [new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setLabel(`Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
+          new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
+        )]
       });
-      return;
     }
 
     /* Close */
-    if (i.isButton() && i.customId === "close") {
-      return i.reply({
-        ephemeral: true,
-        content: "⚠️ Are you sure you want to close this ticket?",
-        components: [
-          new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId("confirm_close").setLabel("Confirm").setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId("cancel_close").setLabel("Cancel").setStyle(ButtonStyle.Secondary)
-          )
-        ]
-      });
-    }
-
-    if (i.isButton() && i.customId === "cancel_close")
-      return i.update({ content: "Cancelled.", components: [] });
-
     if (i.isButton() && i.customId === "confirm_close") {
-      await i.update({ content: "Closing ticket...", components: [] });
-
       const transcript = await createTranscript(i.channel);
-      const openerId = (i.channel.topic || "").split("|")[0].replace("OPENER:", "");
 
-      if (openerId) {
-        try {
-          const opener = await client.users.fetch(openerId);
-          await opener.send({ files: [transcript] });
-        } catch {}
-      }
+      const openerId = i.channel.topic.split("|")[0].replace("OPENER:", "");
+      try { await (await client.users.fetch(openerId)).send({ files: [transcript] }); } catch {}
 
-      const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
-      await log.send({ files: [transcript] });
+      await (await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL)).send({ files: [transcript] });
       await i.channel.delete();
     }
 
-  } catch (err) {
-    console.error("interaction error:", err);
+  } catch (e) {
+    console.error(e);
   }
 });
 
@@ -261,35 +220,32 @@ async function createTicket(i, type, form) {
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
-    .setTitle("Fuze Tickets")
-    .setThumbnail("https://r2.fivemanage.com/4RmswrT2g81ilzhiPT695/Bazaart_DC3DA98C-1470-45E1-B549-21F02068B249-removebg-preview.png")
+    .setAuthor({
+      name: "Fuze Tickets",
+      iconURL: "https://r2.fivemanage.com/4RmswrT2g81ilzhiPT695/Bazaart_DC3DA98C-1470-45E1-B549-21F02068B249-removebg-preview.png"
+    })
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .setFooter({ text: "Fuze Studios Support System" });
 
-  if (type === "support" && form) {
+  if (type === "support") {
     embed.addFields(
-      { name: "Script", value: `\`\`\`\n${form.script}\n\n\n\`\`\`` },
-      { name: "Version", value: `\`\`\`\n${form.version}\n\n\n\`\`\`` },
-      { name: "Framework", value: `\`\`\`\n${form.framework}\n\n\n\`\`\`` }
+      { name: "Script", value: form.script },
+      { name: "Version", value: form.version },
+      { name: "Framework", value: form.framework }
     );
   }
 
   await channel.send({
     content: `<@&${config.staffRole}> <@${i.user.id}>`,
-    allowedMentions: { roles: [config.staffRole], users: [i.user.id] },
     embeds: [embed],
-    components: [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
-      )
-    ]
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
+    )]
   });
 
-  try {
-    await i.followUp({ content: `Ticket created: ${channel}`, ephemeral: true });
-    autoClear(i);
-  } catch {}
+  await i.followUp({ content: `Ticket created: ${channel}`, ephemeral: true });
+  autoClear(i);
 }
 
 client.login(process.env.TOKEN);
