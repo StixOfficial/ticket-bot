@@ -22,7 +22,7 @@ const {
 const { createTranscript } = require("discord-html-transcripts");
 const config = require("./config");
 
-/* Keep Railway alive */
+/* Railway keep alive */
 http.createServer((req, res) => {
   res.writeHead(200);
   res.end("OK");
@@ -172,11 +172,11 @@ async function createTicket(i, type, form) {
     .setTitle("✅ Resource Update")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .addFields(
-      { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\`\`\``, inline: false },
-      { name: "Version", value: `\`\`\`\n${form ? form.version : "N/A"}\n\`\`\``, inline: false },
-      { name: "Framework", value: `\`\`\`\n${form ? form.framework : "N/A"}\n\`\`\``, inline: false }
+      { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\n\n\n\`\`\``, inline: false },
+      { name: "Version", value: `\`\`\`\n${form ? form.version : "N/A"}\n\n\n\n\`\`\``, inline: false },
+      { name: "Framework", value: `\`\`\`\n${form ? form.framework : "N/A"}\n\n\n\n\`\`\``, inline: false }
     )
-    .setFooter({ text: "Prism Scripts Support System" });
+    .setFooter({ text: "Fuze Studios Support System" });
 
   await channel.send({
     content: `<@&${config.staffRole}> <@${i.user.id}>`,
