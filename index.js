@@ -232,6 +232,28 @@ async function createTicket(i, type, form) {
       { id: SUPPORT_ROLE, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }
     ]
   });
+  new TextInputBuilder()
+  .setCustomId("script")
+  .setLabel("Script Name")
+  .setPlaceholder("Fuze Gangs, Fuze VIP Shop")
+  .setStyle(TextInputStyle.Short)
+  .setRequired(true),
+
+new TextInputBuilder()
+  .setCustomId("version")
+  .setLabel("Version")
+  .setPlaceholder("1.0.0")
+  .setStyle(TextInputStyle.Short)
+  .setRequired(true),
+
+new TextInputBuilder()
+  .setCustomId("framework")
+  .setLabel("Framework")
+  .setPlaceholder("QBCore, QBXcore, ESX")
+  .setStyle(TextInputStyle.Short)
+  .setRequired(true)
+
+
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
@@ -267,3 +289,4 @@ async function createTicket(i, type, form) {
 }
 
 client.login(process.env.TOKEN);
+
