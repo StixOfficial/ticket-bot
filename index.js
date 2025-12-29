@@ -22,7 +22,7 @@ const {
 const { createTranscript } = require("discord-html-transcripts");
 const config = require("./config");
 
-/* Railway keep alive */
+/* Keep Railway alive */
 http.createServer((req, res) => {
   res.writeHead(200);
   res.end("OK");
@@ -117,6 +117,12 @@ client.on("interactionCreate", async (i) => {
 
   /* Modal submit */
   if (i.isModalSubmit()) {
+    if (!i.fields.getTextInputValue("script") ||
+        !i.fields.getTextInputValue("version") ||
+        !i.fields.getTextInputValue("framework")) {
+      return i.reply({ content: "All fields are required.", ephemeral: true });
+    }
+
     const data = {
       script: i.fields.getTextInputValue("script"),
       version: i.fields.getTextInputValue("version"),
@@ -129,26 +135,51 @@ client.on("interactionCreate", async (i) => {
   /* Claim */
   if (i.isButton() && i.customId === "claim") {
     if (!i.member.roles.cache.has(config.staffRole))
-      return i.reply({ content: "No permission.", ephemeral: true });
+      return i.reply({ content: "You are not support staff.", ephemeral: true });
 
-    await i.update({
+    await i.deferUpdate();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setLabel(`Claimed by ${i.user.username}`)
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId("close")
+        .setLabel("Close Ticket")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    await i.message.edit({ components: [row] });
+  }
+
+  /* Close */
+  if (i.isButton() && i.customId === "close") {
+    return i.reply({
+      ephemeral: true,
+      content: "⚠️ Are you sure you want to close this ticket?",
       components: [
         new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setLabel(`Claimed by ${i.user.username}`)
-            .setStyle(ButtonStyle.Success)
-            .setDisabled(true)
+          new ButtonBuilder().setCustomId("confirm_close").setLabel("Confirm").setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId("cancel_close").setLabel("Cancel").setStyle(ButtonStyle.Secondary)
         )
       ]
     });
   }
 
-  /* Close */
-  if (i.isButton() && i.customId === "close") {
+  if (i.isButton() && i.customId === "cancel_close") {
+    return i.update({ content: "Ticket closure cancelled.", components: [] });
+  }
+
+  if (i.isButton() && i.customId === "confirm_close") {
+    await i.update({ content: "Closing ticket...", components: [] });
+
     const transcript = await createTranscript(i.channel);
     try { await i.user.send({ files: [transcript] }); } catch {}
+
     const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
     await log.send({ files: [transcript] });
+
     await i.channel.delete();
   }
 });
@@ -169,7 +200,7 @@ async function createTicket(i, type, form) {
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
-    .setTitle("✅Script Support")
+    .setTitle("✅ Script Support")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .addFields(
       { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\n\n\n\`\`\``, inline: false },
@@ -194,4 +225,3 @@ async function createTicket(i, type, form) {
 }
 
 client.login(process.env.TOKEN);
-
