@@ -28,16 +28,21 @@ const client = new Client({
 process.on("unhandledRejection", err => console.error("unhandledRejection:", err));
 process.on("uncaughtException", err => console.error("uncaughtException:", err));
 
-/* Auto clear ephemeral messages */
+/* Auto-clear ephemeral messages safely */
 function autoClear(interaction, seconds = 20) {
   setTimeout(() => {
     try {
-      if (interaction.editReply) interaction.editReply({ content: "", components: [] });
+      if (interaction.editReply) {
+        interaction.editReply({
+          content: "\u200B", // invisible character (Discord requires non-empty)
+          components: []
+        });
+      }
     } catch {}
   }, seconds * 1000);
 }
 
-/* Register /panel */
+/* Slash command */
 const commands = [
   new SlashCommandBuilder().setName("panel").setDescription("Post the support panel")
 ].map(c => c.toJSON());
@@ -45,15 +50,10 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
 async function registerCommands() {
-  try {
-    await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-      { body: commands }
-    );
-    console.log("Slash command registered");
-  } catch (e) {
-    console.error("Slash command registration failed:", e);
-  }
+  await rest.put(
+    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+    { body: commands }
+  );
 }
 
 client.once("ready", async () => {
@@ -62,14 +62,14 @@ client.once("ready", async () => {
 });
 
 /* Helpers */
-function buildPanelEmbed() {
+function panelEmbed() {
   return new EmbedBuilder()
     .setColor(config.embedColor)
     .setTitle(config.panel.title)
     .setDescription(config.panel.description);
 }
 
-function buildPanelMenu() {
+function panelMenu() {
   return new StringSelectMenuBuilder()
     .setCustomId("ticket_select")
     .setPlaceholder("Select a category...")
@@ -82,6 +82,7 @@ function buildPanelMenu() {
 
 client.on("interactionCreate", async (i) => {
   try {
+
     /* /panel */
     if (i.isChatInputCommand() && i.commandName === "panel") {
       if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -91,8 +92,8 @@ client.on("interactionCreate", async (i) => {
       }
 
       await i.channel.send({
-        embeds: [buildPanelEmbed()],
-        components: [new ActionRowBuilder().addComponents(buildPanelMenu())]
+        embeds: [panelEmbed()],
+        components: [new ActionRowBuilder().addComponents(panelMenu())]
       });
 
       await i.reply({ content: "Panel posted.", ephemeral: true });
@@ -104,10 +105,10 @@ client.on("interactionCreate", async (i) => {
     if (i.isStringSelectMenu() && i.customId === "ticket_select") {
       const choice = i.values[0];
 
-      // Reset menu without consuming the interaction
+      // Reset menu (so it visually unselects)
       await i.message.edit({
-        embeds: [buildPanelEmbed()],
-        components: [new ActionRowBuilder().addComponents(buildPanelMenu())]
+        embeds: [panelEmbed()],
+        components: [new ActionRowBuilder().addComponents(panelMenu())]
       });
 
       if (choice === "support") {
@@ -140,7 +141,7 @@ client.on("interactionCreate", async (i) => {
         return i.showModal(modal);
       }
 
-      return createTicketFromInteraction(i, choice, null);
+      return createTicket(i, choice, null);
     }
 
     /* Modal submit */
@@ -154,7 +155,7 @@ client.on("interactionCreate", async (i) => {
         framework: i.fields.getTextInputValue("framework")
       };
 
-      return createTicketFromInteraction(i, "support", data);
+      return createTicket(i, "support", data);
     }
 
     /* Claim */
@@ -163,6 +164,7 @@ client.on("interactionCreate", async (i) => {
         return i.reply({ content: "You are not support staff.", ephemeral: true });
 
       await i.deferUpdate();
+
       const id = Math.floor(Math.random() * 9000) + 1000;
       await i.channel.setName(`${i.user.username}-${id}`);
       await i.channel.send(`**${i.user.username}** has claimed this ticket.`);
@@ -175,7 +177,6 @@ client.on("interactionCreate", async (i) => {
           )
         ]
       });
-      return;
     }
 
     /* Close */
@@ -202,27 +203,15 @@ client.on("interactionCreate", async (i) => {
       const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
       await log.send({ files: [transcript] });
       await i.channel.delete();
-      return;
     }
 
   } catch (err) {
-    console.error("interactionCreate error:", err);
-    try {
-      if (i.isRepliable() && !i.replied && !i.deferred) {
-        await i.reply({ content: "⚠️ Something went wrong.", ephemeral: true });
-        autoClear(i);
-      }
-    } catch {}
+    console.error("interaction error:", err);
   }
 });
 
-async function createTicketFromInteraction(i, type, form) {
+async function createTicket(i, type, form) {
   const data = config.categories.find(c => c.value === type);
-  if (!data) {
-    await i.followUp({ content: "Ticket type not configured.", ephemeral: true });
-    autoClear(i);
-    return;
-  }
 
   const channel = await i.guild.channels.create({
     name: `ticket-${i.user.username}`,
@@ -237,7 +226,7 @@ async function createTicketFromInteraction(i, type, form) {
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
-    .setTitle("✅ Script Support")
+    .setTitle("✅ Resource Update")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .addFields(
       { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\n\n\`\`\`` },
