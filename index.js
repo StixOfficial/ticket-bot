@@ -107,7 +107,6 @@ client.on("interactionCreate", async (i) => {
         components: [new ActionRowBuilder().addComponents(panelMenu())]
       });
 
-      // Script Support
       if (choice === "support") {
         const requiredRole = "1447572198494703666";
         if (!i.member.roles.cache.has(requiredRole)) {
@@ -204,7 +203,6 @@ client.on("interactionCreate", async (i) => {
 
       const transcript = await createTranscript(i.channel);
 
-      // DM opener
       const openerId = (i.channel.topic || "").replace("OPENER:", "");
       if (openerId) {
         try {
@@ -242,7 +240,8 @@ async function createTicket(i, type, form) {
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
-    .setTitle("✅ Resource Update")
+    .setTitle("Fuze Tickets")
+    .setThumbnail("https://r2.fivemanage.com/4RmswrT2g81ilzhiPT695/Bazaart_DC3DA98C-1470-45E1-B549-21F02068B249-removebg-preview.png")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .setFooter({ text: "Fuze Studios Support System" });
 
