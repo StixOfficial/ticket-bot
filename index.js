@@ -30,15 +30,11 @@ const commands = [
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
-
 (async () => {
-  await rest.put(
-    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-    { body: commands }
-  );
+  await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), { body: commands });
 })();
 
-client.once("ready", () => console.log("Ticket Bot Online"));
+client.once("ready", () => console.log("Fuze Studios Ticket Bot Online"));
 
 client.on("interactionCreate", async (i) => {
 
@@ -61,22 +57,15 @@ client.on("interactionCreate", async (i) => {
         value: c.value
       })));
 
-    await i.channel.send({
-      embeds: [embed],
-      components: [new ActionRowBuilder().addComponents(menu)]
-    });
-
+    await i.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
     return i.reply({ content: "Panel posted.", ephemeral: true });
   }
 
-  /* Dropdown (auto reset) */
+  /* Dropdown (always resets) */
   if (i.isStringSelectMenu()) {
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(config.panel.title)
-      .setDescription(config.panel.description);
+    const choice = i.values[0];
 
-    const menu = new StringSelectMenuBuilder()
+    const freshMenu = new StringSelectMenuBuilder()
       .setCustomId("ticket_select")
       .setPlaceholder("Select a category...")
       .addOptions(config.categories.map(c => ({
@@ -85,12 +74,17 @@ client.on("interactionCreate", async (i) => {
         value: c.value
       })));
 
-    await i.message.edit({
-      embeds: [embed],
-      components: [new ActionRowBuilder().addComponents(menu)]
+    const freshEmbed = new EmbedBuilder()
+      .setColor(config.embedColor)
+      .setTitle(config.panel.title)
+      .setDescription(config.panel.description);
+
+    await i.update({
+      embeds: [freshEmbed],
+      components: [new ActionRowBuilder().addComponents(freshMenu)]
     });
 
-    if (i.values[0] === "support") {
+    if (choice === "support") {
       const modal = new ModalBuilder()
         .setCustomId("support_form")
         .setTitle("Script Support");
@@ -110,10 +104,10 @@ client.on("interactionCreate", async (i) => {
       return i.showModal(modal);
     }
 
-    createTicket(i, i.values[0], null);
+    createTicket(i, choice, null);
   }
 
-  /* Modal submit */
+  /* Modal Submit */
   if (i.isModalSubmit()) {
     const data = {
       script: i.fields.getTextInputValue("script"),
@@ -131,17 +125,19 @@ client.on("interactionCreate", async (i) => {
 
     await i.deferUpdate();
 
-    const count = Math.floor(Math.random() * 9000) + 1000;
-    await i.channel.setName(`${i.user.username}-${count}`);
+    const id = Math.floor(Math.random() * 9000) + 1000;
+    await i.channel.setName(`${i.user.username}-${id}`);
 
     await i.channel.send(`**${i.user.username}** has claimed this ticket.`);
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setLabel(`Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
-      new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
-    );
-
-    await i.message.edit({ components: [row] });
+    await i.message.edit({
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setLabel(`Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
+          new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
+        )
+      ]
+    });
   }
 
   /* Close */
@@ -158,16 +154,14 @@ client.on("interactionCreate", async (i) => {
     });
   }
 
-  if (i.isButton() && i.customId === "cancel_close") {
-    return i.update({ content: "Ticket closure cancelled.", components: [] });
-  }
+  if (i.isButton() && i.customId === "cancel_close")
+    return i.update({ content: "Cancelled.", components: [] });
 
   if (i.isButton() && i.customId === "confirm_close") {
     await i.update({ content: "Closing ticket...", components: [] });
 
     const transcript = await createTranscript(i.channel);
     try { await i.user.send({ files: [transcript] }); } catch {}
-
     const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
     await log.send({ files: [transcript] });
 
@@ -194,9 +188,9 @@ async function createTicket(i, type, form) {
     .setTitle("✅ Resource Update")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .addFields(
-      { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\n\n\n\`\`\``, inline: false },
-      { name: "Version", value: `\`\`\`\n${form ? form.version : "N/A"}\n\n\n\n\`\`\``, inline: false },
-      { name: "Framework", value: `\`\`\`\n${form ? form.framework : "N/A"}\n\n\n\n\`\`\``, inline: false }
+      { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\n\n\`\`\`` },
+      { name: "Version", value: `\`\`\`\n${form ? form.version : "N/A"}\n\n\n\`\`\`` },
+      { name: "Framework", value: `\`\`\`\n${form ? form.framework : "N/A"}\n\n\n\`\`\`` }
     )
     .setFooter({ text: "Fuze Studios Support System" });
 
@@ -212,7 +206,7 @@ async function createTicket(i, type, form) {
     ]
   });
 
-  i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+  i.followUp({ content: `Ticket created: ${channel}`, ephemeral: true });
 }
 
 client.login(process.env.TOKEN);
