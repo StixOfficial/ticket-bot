@@ -34,7 +34,7 @@ function autoClear(interaction, seconds = 20) {
     try {
       if (interaction.editReply) {
         interaction.editReply({
-          content: "\u200B", // invisible character (Discord requires non-empty)
+          content: "\u200B",
           components: []
         }).catch(() => {});
       }
@@ -49,21 +49,12 @@ const commands = [
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-async function registerCommands() {
-  try {
-    await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-      { body: commands }
-    );
-    console.log("Slash command registered");
-  } catch (e) {
-    console.error("Slash command registration failed:", e);
-  }
-}
-
 client.once("ready", async () => {
   console.log("Fuze Studios Ticket Bot Online");
-  await registerCommands();
+  await rest.put(
+    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+    { body: commands }
+  );
 });
 
 /* Helpers */
@@ -87,6 +78,7 @@ function panelMenu() {
 
 client.on("interactionCreate", async (i) => {
   try {
+
     /* /panel */
     if (i.isChatInputCommand() && i.commandName === "panel") {
       if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -109,12 +101,13 @@ client.on("interactionCreate", async (i) => {
     if (i.isStringSelectMenu() && i.customId === "ticket_select") {
       const choice = i.values[0];
 
-      // Reset menu (so it visually unselects)
+      // Reset menu
       await i.message.edit({
         embeds: [panelEmbed()],
         components: [new ActionRowBuilder().addComponents(panelMenu())]
       });
 
+      // Script Support
       if (choice === "support") {
         const requiredRole = "1447572198494703666";
         if (!i.member.roles.cache.has(requiredRole)) {
@@ -132,31 +125,22 @@ client.on("interactionCreate", async (i) => {
 
         modal.addComponents(
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("script")
-              .setLabel("Script Name")
-              .setStyle(TextInputStyle.Short)
-              .setRequired(true)
+            new TextInputBuilder().setCustomId("script").setLabel("Script Name").setStyle(TextInputStyle.Short).setRequired(true)
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("version")
-              .setLabel("Version")
-              .setStyle(TextInputStyle.Short)
-              .setRequired(true)
+            new TextInputBuilder().setCustomId("version").setLabel("Version").setStyle(TextInputStyle.Short).setRequired(true)
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("framework")
-              .setLabel("Framework")
-              .setStyle(TextInputStyle.Short)
-              .setRequired(true)
+            new TextInputBuilder().setCustomId("framework").setLabel("Framework").setStyle(TextInputStyle.Short).setRequired(true)
           )
         );
 
         return i.showModal(modal);
       }
 
+      // Other ticket types
+      await i.reply({ content: "Creating your ticket...", ephemeral: true });
+      autoClear(i);
       return createTicket(i, choice, null);
     }
 
@@ -183,7 +167,6 @@ client.on("interactionCreate", async (i) => {
       }
 
       await i.deferUpdate();
-
       const id = Math.floor(Math.random() * 9000) + 1000;
       await i.channel.setName(`${i.user.username}-${id}`);
       await i.channel.send(`**${i.user.username}** has claimed this ticket.`);
@@ -191,14 +174,8 @@ client.on("interactionCreate", async (i) => {
       await i.message.edit({
         components: [
           new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setLabel(`Claimed by ${i.user.username}`)
-              .setStyle(ButtonStyle.Success)
-              .setDisabled(true),
-            new ButtonBuilder()
-              .setCustomId("close")
-              .setLabel("Close Ticket")
-              .setStyle(ButtonStyle.Danger)
+            new ButtonBuilder().setLabel(`Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
+            new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
           )
         ]
       });
@@ -219,17 +196,16 @@ client.on("interactionCreate", async (i) => {
       });
     }
 
-    if (i.isButton() && i.customId === "cancel_close") {
+    if (i.isButton() && i.customId === "cancel_close")
       return i.update({ content: "Cancelled.", components: [] });
-    }
 
     if (i.isButton() && i.customId === "confirm_close") {
       await i.update({ content: "Closing ticket...", components: [] });
 
       const transcript = await createTranscript(i.channel);
 
-      // DM transcript to the ticket opener (stored in channel topic)
-      const openerId = (i.channel.topic || "").startsWith("OPENER:") ? i.channel.topic.slice(7) : null;
+      // DM opener
+      const openerId = (i.channel.topic || "").replace("OPENER:", "");
       if (openerId) {
         try {
           const opener = await client.users.fetch(openerId);
@@ -237,7 +213,6 @@ client.on("interactionCreate", async (i) => {
         } catch {}
       }
 
-      // Send transcript to log channel
       const log = await client.channels.fetch(process.env.TRANSCRIPT_CHANNEL);
       await log.send({ files: [transcript] });
 
@@ -247,26 +222,15 @@ client.on("interactionCreate", async (i) => {
 
   } catch (err) {
     console.error("interaction error:", err);
-    try {
-      if (i.isRepliable() && !i.replied && !i.deferred) {
-        await i.reply({ content: "⚠️ Something went wrong.", ephemeral: true });
-        autoClear(i);
-      }
-    } catch {}
   }
 });
 
 async function createTicket(i, type, form) {
   const data = config.categories.find(c => c.value === type);
-  if (!data) {
-    await i.followUp({ content: "Ticket type not configured.", ephemeral: true }).catch(() => {});
-    autoClear(i);
-    return;
-  }
 
   const channel = await i.guild.channels.create({
     name: `ticket-${i.user.username}`,
-    topic: `OPENER:${i.user.id}`, // store opener for transcript DM
+    topic: `OPENER:${i.user.id}`,
     parent: data.categoryId,
     type: ChannelType.GuildText,
     permissionOverwrites: [
@@ -276,14 +240,12 @@ async function createTicket(i, type, form) {
     ]
   });
 
-  // Base embed
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
     .setTitle("✅ Resource Update")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .setFooter({ text: "Fuze Studios Support System" });
 
-  // ONLY Script Support gets Script/Version/Framework fields
   if (type === "support" && form) {
     embed.addFields(
       { name: "Script", value: `\`\`\`\n${form.script}\n\n\n\`\`\`` },
