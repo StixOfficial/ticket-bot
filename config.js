@@ -4,7 +4,7 @@ module.exports = {
   staffRole: "1447572189451653120",
 
   panel: {
-    title: "Support Center",
+    title: "<:sada:1455336425989083260> Support Center",
     description:
       "**We aim to provide the best support we can. Please ensure you open your inquiry in the correct category below.**\n\n" +
       "🛠️ **Script Support**\n" +
@@ -36,3 +36,4 @@ module.exports = {
     }
   ]
 };
+
