@@ -2,21 +2,13 @@ require("dotenv").config();
 const http = require("http");
 
 const {
-  Client,
-  GatewayIntentBits,
-  ChannelType,
-  EmbedBuilder,
-  ActionRowBuilder,
-  StringSelectMenuBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  PermissionsBitField,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  SlashCommandBuilder,
-  REST,
-  Routes
+  Client, GatewayIntentBits, ChannelType,
+  EmbedBuilder, ActionRowBuilder,
+  StringSelectMenuBuilder, ButtonBuilder,
+  ButtonStyle, PermissionsBitField,
+  ModalBuilder, TextInputBuilder,
+  TextInputStyle, SlashCommandBuilder,
+  REST, Routes
 } = require("discord.js");
 
 const { createTranscript } = require("discord-html-transcripts");
@@ -29,37 +21,24 @@ http.createServer((req, res) => {
 }).listen(process.env.PORT || 3000);
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
 /* Register /panel */
 const commands = [
-  new SlashCommandBuilder()
-    .setName("panel")
-    .setDescription("Post the support panel")
+  new SlashCommandBuilder().setName("panel").setDescription("Post the support panel")
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
 (async () => {
-  try {
-    await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-      { body: commands }
-    );
-    console.log("Slash command registered");
-  } catch (e) {
-    console.error("Slash command error", e);
-  }
+  await rest.put(
+    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+    { body: commands }
+  );
 })();
 
-client.once("ready", () => {
-  console.log("Ticket Bot Online");
-});
+client.once("ready", () => console.log("Ticket Bot Online"));
 
 client.on("interactionCreate", async (i) => {
 
@@ -90,8 +69,27 @@ client.on("interactionCreate", async (i) => {
     return i.reply({ content: "Panel posted.", ephemeral: true });
   }
 
-  /* Dropdown */
+  /* Dropdown (auto reset) */
   if (i.isStringSelectMenu()) {
+    const embed = new EmbedBuilder()
+      .setColor(config.embedColor)
+      .setTitle(config.panel.title)
+      .setDescription(config.panel.description);
+
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId("ticket_select")
+      .setPlaceholder("Select a category...")
+      .addOptions(config.categories.map(c => ({
+        label: c.label,
+        emoji: c.emoji,
+        value: c.value
+      })));
+
+    await i.message.edit({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(menu)]
+    });
+
     if (i.values[0] === "support") {
       const modal = new ModalBuilder()
         .setCustomId("support_form")
@@ -117,12 +115,6 @@ client.on("interactionCreate", async (i) => {
 
   /* Modal submit */
   if (i.isModalSubmit()) {
-    if (!i.fields.getTextInputValue("script") ||
-        !i.fields.getTextInputValue("version") ||
-        !i.fields.getTextInputValue("framework")) {
-      return i.reply({ content: "All fields are required.", ephemeral: true });
-    }
-
     const data = {
       script: i.fields.getTextInputValue("script"),
       version: i.fields.getTextInputValue("version"),
@@ -139,15 +131,14 @@ client.on("interactionCreate", async (i) => {
 
     await i.deferUpdate();
 
+    const count = Math.floor(Math.random() * 9000) + 1000;
+    await i.channel.setName(`${i.user.username}-${count}`);
+
+    await i.channel.send(`**${i.user.username}** has claimed this ticket.`);
+
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setLabel(`Claimed by ${i.user.username}`)
-        .setStyle(ButtonStyle.Success)
-        .setDisabled(true),
-      new ButtonBuilder()
-        .setCustomId("close")
-        .setLabel("Close Ticket")
-        .setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setLabel(`Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
+      new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
     );
 
     await i.message.edit({ components: [row] });
@@ -200,7 +191,7 @@ async function createTicket(i, type, form) {
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
-    .setTitle("✅ Script Support")
+    .setTitle("✅ Resource Update")
     .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
     .addFields(
       { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\n\n\n\`\`\``, inline: false },
