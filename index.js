@@ -22,7 +22,7 @@ const {
 const { createTranscript } = require("discord-html-transcripts");
 const config = require("./config");
 
-/* Railway keep-alive */
+/* Keep Railway alive */
 http.createServer((req, res) => {
   res.writeHead(200);
   res.end("OK");
@@ -170,11 +170,11 @@ async function createTicket(i, type, form) {
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
     .setTitle("✅ Resource Update")
-    .setDescription(
-      `**Resource:** ${data.label}\n` +
-      `**Opened By:** <@${i.user.id}>\n\n` +
-      `**Changes**\n**Added:**\n\`\`\`diff\n+ Support request opened\n\`\`\`\n` +
-      `**Changed File(s):**\n\`\`\`${form ? `Script: ${form.script}\nVersion: ${form.version}\nFramework: ${form.framework}` : "General ticket"}\`\`\``
+    .setDescription(`**Resource:** ${data.label}\n**Opened By:** <@${i.user.id}>`)
+    .addFields(
+      { name: "Script", value: `\`\`\`\n${form ? form.script : "N/A"}\n\`\`\``, inline: false },
+      { name: "Version", value: `\`\`\`\n${form ? form.version : "N/A"}\n\`\`\``, inline: false },
+      { name: "Framework", value: `\`\`\`\n${form ? form.framework : "N/A"}\n\`\`\``, inline: false }
     )
     .setFooter({ text: "Prism Scripts Support System" });
 
@@ -184,8 +184,8 @@ async function createTicket(i, type, form) {
     embeds: [embed],
     components: [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("claim").setLabel("Get Notifications").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("close").setLabel("Remove Notifications").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
       )
     ]
   });
