@@ -123,17 +123,32 @@ client.on("interactionCreate", async i => {
           return i.reply({ content: "❌ You already have a Script Support ticket.", ephemeral: true });
 
         const modal = new ModalBuilder()
-          .setCustomId("support_form")
+          .setCustomId("support_form_v2")
           .setTitle("Script Support")
           .addComponents(
             new ActionRowBuilder().addComponents(
-              new TextInputBuilder().setCustomId("script").setLabel("Script Name").setStyle(TextInputStyle.Short).setRequired(true)
+              new TextInputBuilder()
+                .setCustomId("script")
+                .setLabel("Script Name")
+                .setPlaceholder("Fuze Gangs, Fuze VIP Shop")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
             ),
             new ActionRowBuilder().addComponents(
-              new TextInputBuilder().setCustomId("version").setLabel("Version").setStyle(TextInputStyle.Short).setRequired(true)
+              new TextInputBuilder()
+                .setCustomId("version")
+                .setLabel("Version")
+                .setPlaceholder("1.0.0")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
             ),
             new ActionRowBuilder().addComponents(
-              new TextInputBuilder().setCustomId("framework").setLabel("Framework").setStyle(TextInputStyle.Short).setRequired(true)
+              new TextInputBuilder()
+                .setCustomId("framework")
+                .setLabel("Framework")
+                .setPlaceholder("QBCore, QBXcore, ESX")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
             )
           );
         return i.showModal(modal);
@@ -148,7 +163,7 @@ client.on("interactionCreate", async i => {
     }
 
     /* Modal submit */
-    if (i.isModalSubmit() && i.customId === "support_form") {
+    if (i.isModalSubmit() && i.customId === "support_form_v2") {
       await i.reply({ content: "Creating your ticket...", ephemeral: true });
       autoClear(i);
 
@@ -232,28 +247,6 @@ async function createTicket(i, type, form) {
       { id: SUPPORT_ROLE, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }
     ]
   });
-  new TextInputBuilder()
-  .setCustomId("script")
-  .setLabel("Script Name")
-  .setPlaceholder("Fuze Gangs, Fuze VIP Shop")
-  .setStyle(TextInputStyle.Short)
-  .setRequired(true),
-
-new TextInputBuilder()
-  .setCustomId("version")
-  .setLabel("Version")
-  .setPlaceholder("1.0.0")
-  .setStyle(TextInputStyle.Short)
-  .setRequired(true),
-
-new TextInputBuilder()
-  .setCustomId("framework")
-  .setLabel("Framework")
-  .setPlaceholder("QBCore, QBXcore, ESX")
-  .setStyle(TextInputStyle.Short)
-  .setRequired(true)
-
-
 
   const embed = new EmbedBuilder()
     .setColor("#b7ff00")
@@ -289,4 +282,3 @@ new TextInputBuilder()
 }
 
 client.login(process.env.TOKEN);
-
