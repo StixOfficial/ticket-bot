@@ -2,31 +2,45 @@ require("dotenv").config();
 const http = require("http");
 
 const {
-  Client, GatewayIntentBits, ChannelType,
-  EmbedBuilder, ActionRowBuilder,
-  StringSelectMenuBuilder, ButtonBuilder,
-  ButtonStyle, PermissionsBitField,
-  ModalBuilder, TextInputBuilder,
-  TextInputStyle, SlashCommandBuilder,
-  REST, Routes
+  Client,
+  GatewayIntentBits,
+  ChannelType,
+  EmbedBuilder,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  PermissionsBitField,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  SlashCommandBuilder,
+  REST,
+  Routes
 } = require("discord.js");
 
 const { createTranscript } = require("discord-html-transcripts");
 const config = require("./config");
 
-/* Keep Railway alive */
+/* Railway keep-alive */
 http.createServer((req, res) => {
   res.writeHead(200);
-  res.end("ok");
+  res.end("OK");
 }).listen(process.env.PORT || 3000);
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
-/* Register slash command */
+/* Register /panel */
 const commands = [
-  new SlashCommandBuilder().setName("panel").setDescription("Post the support panel")
+  new SlashCommandBuilder()
+    .setName("panel")
+    .setDescription("Post the support panel")
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
@@ -39,17 +53,17 @@ const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
     );
     console.log("Slash command registered");
   } catch (e) {
-    console.error("Command register error", e);
+    console.error("Slash command error", e);
   }
 })();
 
 client.once("ready", () => {
-  console.log("Ticket bot online");
+  console.log("Ticket Bot Online");
 });
 
-client.on("interactionCreate", async i => {
+client.on("interactionCreate", async (i) => {
 
-  // /panel
+  /* /panel */
   if (i.isChatInputCommand() && i.commandName === "panel") {
     if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return i.reply({ content: "No permission.", ephemeral: true });
@@ -76,7 +90,7 @@ client.on("interactionCreate", async i => {
     return i.reply({ content: "Panel posted.", ephemeral: true });
   }
 
-  // Dropdown
+  /* Dropdown */
   if (i.isStringSelectMenu()) {
     if (i.values[0] === "support") {
       const modal = new ModalBuilder()
@@ -101,7 +115,7 @@ client.on("interactionCreate", async i => {
     createTicket(i, i.values[0], null);
   }
 
-  // Modal submit
+  /* Modal submit */
   if (i.isModalSubmit()) {
     const data = {
       script: i.fields.getTextInputValue("script"),
@@ -112,19 +126,24 @@ client.on("interactionCreate", async i => {
     createTicket(i, "support", data);
   }
 
-  // Claim
+  /* Claim */
   if (i.isButton() && i.customId === "claim") {
     if (!i.member.roles.cache.has(config.staffRole))
       return i.reply({ content: "No permission.", ephemeral: true });
 
     await i.update({
-      components: [new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setLabel(`Claimed by ${i.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true)
-      )]
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel(`Claimed by ${i.user.username}`)
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(true)
+        )
+      ]
     });
   }
 
-  // Close
+  /* Close */
   if (i.isButton() && i.customId === "close") {
     const transcript = await createTranscript(i.channel);
     try { await i.user.send({ files: [transcript] }); } catch {}
@@ -148,54 +167,30 @@ async function createTicket(i, type, form) {
     ]
   });
 
-  let desc = `Opened by <@${i.user.id}>`;
-  if (form)
-    desc += `\n\n**Script:** ${form.script}\n**Version:** ${form.version}\n**Framework:** ${form.framework}`;
+  const embed = new EmbedBuilder()
+    .setColor("#b7ff00")
+    .setTitle("✅ Resource Update")
+    .setDescription(
+      `**Resource:** ${data.label}\n` +
+      `**Opened By:** <@${i.user.id}>\n\n` +
+      `**Changes**\n**Added:**\n\`\`\`diff\n+ Support request opened\n\`\`\`\n` +
+      `**Changed File(s):**\n\`\`\`${form ? `Script: ${form.script}\nVersion: ${form.version}\nFramework: ${form.framework}` : "General ticket"}\`\`\``
+    )
+    .setFooter({ text: "Prism Scripts Support System" });
 
   await channel.send({
-    const embed = new EmbedBuilder()
-  .setColor("#b7ff00")
-  .setTitle("✅ Resource Update")
-  .setDescription(
-    `**Resource:** ${data.label}\n` +
-    `**Opened By:** <@${i.user.id}>\n\n` +
-    `**Changes**\n` +
-    `**Added:**\n` +
-    "```diff\n+ Support request opened\n```\n" +
-    `**Changed File(s):**\n` +
-    "```" +
-    (form
-      ? `Script: ${form.script}\nVersion: ${form.version}\nFramework: ${form.framework}`
-      : "General ticket"
-    ) +
-    "```"
-  )
-  .setFooter({ text: "Prism Scripts Support System" });
-
-await channel.send({
-  content: `<@&${config.staffRole}> <@${i.user.id}>`,
-  allowedMentions: {
-    roles: [config.staffRole],
-    users: [i.user.id]
-  },
-  embeds: [embed],
-  components: [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("claim")
-        .setLabel("Get Notifications")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId("close")
-        .setLabel("Remove Notifications")
-        .setStyle(ButtonStyle.Danger)
-    )
-  ]
-});
-
+    content: `<@&${config.staffRole}> <@${i.user.id}>`,
+    allowedMentions: { roles: [config.staffRole], users: [i.user.id] },
+    embeds: [embed],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("claim").setLabel("Get Notifications").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("close").setLabel("Remove Notifications").setStyle(ButtonStyle.Danger)
+      )
+    ]
+  });
 
   i.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
 }
 
 client.login(process.env.TOKEN);
-
